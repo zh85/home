@@ -1,51 +1,207 @@
-# CrysLLMGen Experimental Results
+# LLM Meets Diffusion: A Hybrid Framework for Crystal Material Generation. (NeurIPS 2025)
 
-## Pipeline: LLM + Diffusion for Crystal Structure Generation
+[![arXiv](https://img.shields.io/badge/PDF-arXiv-blue)](https://arxiv.org/pdf/2510.23040)
+[![Code](https://img.shields.io/badge/Code-GitHub-blue)](https://github.com/kdmsit/crysllmgen/)
 
-All experiments run on MP-20 dataset, using LLaMA3-8B (fine-tuned) for text feature extraction and CSPDiffusion for structure generation.
 
-## Results Summary
+This repository contains the official code release for our ICLR 2025 paper [*"LLM Meets Diffusion - A Hybrid Framework for Crystal Material Generation"*](https://arxiv.org/pdf/2510.23040), 
+by [Subhojyoti Khastagir*](https://www.linkedin.com/in/subhojyoti-khastagir-2a4716152/), [Kishalay Das*](https://kdmsit.github.io/), [Pawan Goyal](https://cse.iitkgp.ac.in/~pawang/), Seung-Cheol Lee, [Satadeep Bhattacharjee](linkedin.com/in/satadeep-bhattacharjee-545567114/), [Niloy Ganguly](https://niloy-ganguly.github.io/).
 
-| Model | LLM | Diffusion | comp_valid | struct_valid | valid | wdist_density | wdist_num_elems | cov_recall | cov_precision |
-|-------|:---:|:---------:|:----------:|:----------:|:-----:|:------------:|:---------------:|:----------:|:-------------:|
-| Unconditional (baseline) | ✗ | ✓ | 86.27 | 99.93 | 86.22 | 0.10 | 0.20 | **99.15** | 99.18 |
-| LLM-Only | ✓ | ✗ | 86.27 | 92.08 | 79.92 | 0.98 | 0.22 | 96.75 | 97.78 |
-| Additive Cond | ✓ | ✓ | 86.27 | **99.94** | 86.22 | 3.56 | 0.20 | 53.54 | 95.95 |
-| Cross-Attention Cond | ✓ | ✓ | 86.27 | 99.29 | 85.75 | 1.51 | 0.20 | 94.43 | 95.27 |
-| Spatial Cross-Attn Cond | ✓ | ✓ | — | — | — | — | — | — | — |
 
-## Key Findings
+CrysLLMGen introduces a hybrid approach to generating 3D  structure of crystal materials. Key contributions of CrysLLMGen are:
+- Hybrid LLM + Diffusion Framework: Integrates LLMs for discrete predictions with equivariant diffusion models for continuous structural refinement.
+- Two-Stage Generation: LLM proposes atom types, coordinates, and lattice; diffusion model refines them for stability and physical validity.
+- Constraint-Aware Design: Supports conditional generation based on user-defined composition, space group, and natural-language prompts.
+- Balanced Validity & Novelty: Achieves superior stability, structural correctness, and compositional validity compared to standalone LLMs or diffusion models.
+- Architecture-Agnostic: Framework can seamlessly incorporate future LLMs and denoising architectures.
 
-1. **Unconditional diffusion** achieves the best overall performance (cov_recall 99.15), serving as the strong baseline.
-2. **Cross-Attention conditioning** (cov_recall 94.43) significantly outperforms Additive Cond (53.54), demonstrating that token-level cross-attention avoids the mode collapse caused by global vector injection.
-3. **Additive Cond** suffers severe mode collapse — compressing LLM features into a single global vector forces all atoms to receive the same signal, collapsing diversity.
-4. **LLM-Only** (no diffusion) has poor structural validity (92.08), confirming that diffusion refinement is essential.
-5. **Spatial Cross-Attn** (training complete, sampling pending) adds 3D coordinate-based spatial bias to cross-attention, expected to further close the gap with unconditional.
+![](CrysLLMGen.png)
 
-## Architectures
 
-### Additive Cond
+## Installation
+The list of dependencies is provided in the `requirements.txt` file, generated using `pipreqs`. You can install through the following commands:
+```bash
+pip install -r requirements.txt
 ```
-LLM feature [B,4096] → MLP → [B,512] global vector → added to all atom features
+However, there may be some ad-hoc dependencies that were not captured. 
+If you encounter any missing packages, feel free to install them manually using `pip install`.
+
+## Usage Guide
+
+### Training Pipeline
+
+#### Step 1: Fine-tune LLaMA-2 Model
+
+**For Perov-5**
+
+```bash
+python -W ignore llm_finetune.py \
+--run-name 7b-perov \
+--model 7b \
+--num-epochs 1 \
+--data-path data/perov_5
 ```
 
-### Cross-Attention Cond
+**For MP-20**
+
+```bash
+python -W ignore llm_finetune.py \
+--run-name 7b-mp \
+--model 7b \
+--num-epochs 1 \
+--data-path data/mp_20
 ```
-LLM feature [B,4096] → reshape → [B, 8 tokens, 512 dim]
-Each CSPLayer: atom features cross-attend to 8 LLM tokens
+
+**Output:**
+The fine-tuned LLM will be saved in:
+
+* `exp/7b-perov/` (Perov-5)
+* `exp/7b-mp/` (MP-20)
+
+---
+
+#### Step 2: Train the Diffusion Model
+
+**For Perov-5**
+
+```bash
+python -W ignore diff_train.py \
+--dataset perov_5 \
+--batch_size 512 \
+--epochs 500 \
+--timesteps 1000 \
+--run-type train
 ```
 
-### Spatial Cross-Attention Cond
+**For MP-20**
+
+```bash
+python -W ignore diff_train.py \
+--dataset mp_20 \
+--batch_size 512 \
+--epochs 500 \
+--timesteps 1000 \
+--run-type train
 ```
-Same as Cross-Attention + 3D sinusoidal position encoding bias on attention scores
+
+**Output:**
+The trained diffusion model will be saved at:
+
+```
+out/<Dataset>/<expt_date>/<expt_time>/
 ```
 
-## Model Paths
+Where `<Dataset>` is either `perov_5` or `mp_20`.
 
-- Additive Cond: `out/mp_20/04052026/102707/model_final.pt`
-- Cross-Attention: `out/mp_20/04052026/120614/model_final.pt`
-- Spatial Cross-Attn: `out/mp_20/06052026/092559/model_final.pt`
+---
 
-## Generated Samples
+## Unconditional Sampling (Batch-wise) from CrysLLMGen
 
-All 10,000 samples available at `results/llama3_sample_*.pt`
+Use the correct `--model_path` and `--diff_steps` depending on the dataset.
+
+```bash
+python -W ignore crysllmgen_sample.py \
+--model_name 7b \
+--model_path <LLM_CHECKPOINT_PATH> \
+--chkpt_name <DIFFUSION_CHECKPOINT_PATH> \
+--num_samples 10000 \
+--dataset < mp | perov> \
+--temperature 1.0 \
+--top_p 0.7 \
+--diff_steps <700 | 800> \
+--run-type sample \
+--out-prefix "Crysllmgen_sample" \
+--batch_size 128
+```
+# hengzhang fix
+python -W ignore crysllmgen_sample.py --model_name 7b --model_path exp/7b-perov-fast/checkpoint-710 --chkpt_name out/perov_5/09042026/191909/model_496.pt --num_samples 128 --dataset perov --temperature 1.0 --batch_size 128 --out-prefix my_sample_result
+
+
+### Replace the Following Based on Dataset
+
+#### For MP-20
+
+* `--model_path exp/7b-mp/checkpoint-27136`
+* `--dataset mp`
+* `--diff_steps 800`
+
+#### For Perov-5
+
+* `--model_path exp/7b-perov/checkpoint-11356`
+* `--dataset perov`
+* `--diff_steps 700`
+
+---
+
+### Output Files
+
+Generated samples are saved as `.pt` files:
+
+* `Crysllmgen_sample_mp_10000.pt`
+* `Crysllmgen_sample_perov_10000.pt`
+
+---
+
+### Important Notes
+
+* `<DIFFUSION_CHECKPOINT_PATH>` should point to:
+
+  ```
+  out/<Dataset>/<expt_date>/<expt_time>/
+  ```
+* You can adjust `--temperature` and `--top_p` to balance diversity and generation quality.
+
+---
+
+## Evaluation for Unconditional Generation
+
+After sampling, evaluate the generated structures using:
+
+**For Perov-5**
+
+```bash
+python -W ignore compute_metrics.py \
+--root_path <PT_FILE_PATH> \
+--tasks gen \
+--eval_model_name perovskite \
+--gt_file data/perov_5/test.csv
+```
+
+**For MP-20**
+
+```bash
+python -W ignore compute_metrics.py \
+--root_path <PT_FILE_PATH> \
+--tasks gen \
+--eval_model_name mp20 \
+--gt_file data/mp_20/test.csv
+```
+
+`<PT_FILE_PATH>` should be the directory containing:
+
+* `Crysllmgen_sample_mp_10000.pt`
+* `Crysllmgen_sample_perov_10000.pt`
+
+---
+
+## Contact
+
+For any questions, please contact:
+Kishalay Das
+[kishalaydas@kgpian.iitkgp.ac.in](mailto:kishalaydas@kgpian.iitkgp.ac.in)
+
+---
+
+## How to Cite
+
+If you use CrysLLMGen or our textual dataset, please cite:
+
+```
+@article{khastagir2025llm,
+  title={LLM Meets Diffusion: A Hybrid Framework for Crystal Material Generation},
+  author={Khastagir, Subhojyoti and Das, Kishalay and Goyal, Pawan and Lee, Seung-Cheol and Bhattacharjee, Satadeep and Ganguly, Niloy},
+  journal={arXiv preprint arXiv:2510.23040},
+  year={2025}
+}
+```
+

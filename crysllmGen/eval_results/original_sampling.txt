@@ -1,0 +1,13 @@
+Original Sampling (baseline, no LLM conditioning)
+===================================================
+File: results/llama3_sample_mp_20_10000.pt
+Date: 2026-05-04
+
+Metrics:
+  comp_valid:       87.18
+  struct_valid:     99.90
+  valid:            87.12
+  wdist_density:    0.1036
+  wdist_num_elems:  0.1934
+  cov_recall:       99.3367
+  cov_precision:    99.26
