@@ -1,0 +1,53 @@
+{
+  "dataset": "mp_20",
+  "num_samples": 10000,
+  "llm_model": "Meta-Llama-3-8B",
+  "diffusion_model": "CSPDiffusion",
+  "results": {
+    "unconditional": {
+      "comp_valid": 86.27,
+      "struct_valid": 99.93,
+      "valid": 86.22,
+      "wdist_density": 0.10,
+      "wdist_num_elems": 0.2037,
+      "cov_recall": 99.1488,
+      "cov_precision": 99.18,
+      "sample_file": "results/llama3_sample_unconditional_mp_20_10000.pt"
+    },
+    "llm_only": {
+      "comp_valid": 86.27,
+      "struct_valid": 92.08,
+      "valid": 79.92,
+      "wdist_density": 0.976,
+      "wdist_num_elems": 0.2218,
+      "cov_recall": 96.7499,
+      "cov_precision": 97.78,
+      "sample_file": "results/llama3_sample_llmonly_mp_20_10000.pt"
+    },
+    "additive_cond": {
+      "comp_valid": 86.27,
+      "struct_valid": 99.94,
+      "valid": 86.22,
+      "wdist_density": 3.5628,
+      "wdist_num_elems": 0.204,
+      "cov_recall": 53.5375,
+      "cov_precision": 95.95,
+      "sample_file": "results/llama3_sample_cond_mp_20_10000.pt"
+    },
+    "cross_attn": {
+      "comp_valid": 86.27,
+      "struct_valid": 99.29,
+      "valid": 85.75,
+      "wdist_density": 1.5135,
+      "wdist_num_elems": 0.2042,
+      "cov_recall": 94.4285,
+      "cov_precision": 95.27,
+      "sample_file": "results/llama3_sample_crossattn_mp_20_10000.pt"
+    },
+    "spatial_cross_attn": {
+      "status": "training_complete_sampling_pending",
+      "model_path": "out/mp_20/06052026/092559/model_final.pt",
+      "training_log": "run_train_spatial.log"
+    }
+  }
+}
