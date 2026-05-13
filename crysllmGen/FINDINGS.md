@@ -69,3 +69,127 @@ LLM 改进方向:      保持高 comp_valid，提升 cov_recall 回到 99+
 
 完整代码在 `/zhdd/home/hengzhang/code/crysllmgen-main/`。
 模型权重在 `exp/llama3-8b-mp-5epoch/`。
+
+---
+
+## 实验卡片: 5-epoch Unconditional
+
+### 目录结构
+
+```
+exp/llama3-8b-mp-5epoch/          # LoRA 权重
+  adapter_config.json
+  adapter_model.safetensors         # 2.27 GB
+  checkpoint-500/ ... checkpoint-4240/   # 中间 checkpoint
+results/llama3_sample_5epoch_mp_20_10000.pt   # 采样结果 (2.0 MB)
+eval_5epoch.log                    # 评估日志
+finetune_llama3_5epoch.log         # 训练日志
+sample_5epoch.log                  # 采样日志
+```
+
+### 1. LLM 微调
+
+**脚本**: `llm_finetune_llama3.py`
+
+```bash
+CUDA_VISIBLE_DEVICES=4 \
+python -u -W ignore llm_finetune_llama3.py \
+  --run-name llama3-8b-mp-5epoch \
+  --data-path data/mp_20 \
+  --num-epochs 5 \
+  --batch-size 4 \
+  --grad-accum 8 \
+  --lr 2e-5 \
+  --lr-scheduler cosine \
+  --save-freq 500 \
+  --eval-freq 200 \
+  --logging-steps 5 \
+  2>&1 | tee finetune_llama3_5epoch.log
+```
+
+| 参数 | 值 |
+|------|-----|
+| 基座模型 | Meta-Llama-3-8B (`/zhdd/home/hengzhang/models/Meta-Llama-3-8B/LLM-Research/Meta-Llama-3-8B`) |
+| 数据集 | mp_20 (train=27,136, val=9,047) |
+| Epochs | 5 |
+| 总步数 | 4,240 |
+| 每设备 Batch Size | 4 |
+| 梯度累积 | 8 |
+| 有效 Batch Size | 32 |
+| 学习率 | 2e-5 |
+| LR 调度器 | cosine (warmup_ratio=0.03) |
+| Weight Decay | 0.01 |
+| 精度 | bfloat16 |
+| LoRA Rank | 16 |
+| LoRA Alpha | 64 |
+| LoRA Dropout | 0.05 |
+| LoRA Target | q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj |
+| 可训练参数 | 41,943,040 / 8,072,204,288 (0.52%) |
+| GPU | NVIDIA A100 80GB PCIe (GPU 4) |
+| 训练时间 | 24,166s (~6.7h) |
+| Train Loss | 0.4573 |
+
+### 2. 采样 + 扩散精炼
+
+**脚本**: `crysllmgen_sample_llama3.py`
+
+```bash
+CUDA_VISIBLE_DEVICES=4 \
+python -u -W ignore crysllmgen_sample_llama3.py \
+  --model_path exp/llama3-8b-mp-5epoch \
+  --llama_model_path /zhdd/home/hengzhang/models/Meta-Llama-3-8B/LLM-Research/Meta-Llama-3-8B \
+  --dataset mp_20 \
+  --num_samples 10000 \
+  --batch_size 4 \
+  --temperature 1.0 \
+  --top_p 0.7 \
+  --diff_steps 800 \
+  --timesteps 1000 \
+  --run-type sample \
+  --out-prefix results/llama3_sample_5epoch \
+  2>&1 | tee sample_5epoch.log
+```
+
+| 参数 | 值 |
+|------|-----|
+| LoRA adapter | `exp/llama3-8b-mp-5epoch` |
+| 扩散模型 | `out/mp_20/03052026/211726/model_final.pt` |
+| 采样数量 | 10,000 |
+| LLM Batch Size | 4 |
+| 扩散 Batch Size | 1,024 (脚本内硬编码) |
+| Temperature | 1.0 |
+| Top-p | 0.7 |
+| Diffusion Steps | 800 |
+| Timesteps | 1,000 |
+| GPU | NVIDIA A100 80GB PCIe (GPU 4) |
+| 采样时间 | ~3h (LLM 生成 + 扩散精炼) |
+| 输出文件 | `results/llama3_sample_5epoch_mp_20_10000.pt` |
+
+### 3. 评估
+
+**脚本**: `compute_metrics.py`
+
+```bash
+CUDA_VISIBLE_DEVICES=1 \
+python -u -W ignore compute_metrics.py \
+  --root_path results/llama3_sample_5epoch_mp_20_10000.pt \
+  --tasks gen \
+  --eval_model_name mp20 \
+  --gt_file data/mp_20/test.csv \
+  2>&1 | tee eval_5epoch.log
+```
+
+| 参数 | 值 |
+|------|-----|
+| 评估模型 | mp20 |
+| 测试集 | `data/mp_20/test.csv` |
+| GPU | GPU 1 |
+
+### 复现 Checklist
+
+1. 确认 conda 环境: `conda activate crysllm`
+2. 确认基座模型存在: `/zhdd/home/hengzhang/models/Meta-Llama-3-8B/LLM-Research/Meta-Llama-3-8B`
+3. 确认数据: `data/mp_20/train.csv, val.csv, test.csv`
+4. 确认扩散模型: `out/mp_20/03052026/211726/model_final.pt`
+5. 检查 GPU 显存 (需 ≥50GB 空闲)
+6. 按顺序执行上述三个命令
